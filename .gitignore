@@ -1,20 +1,15 @@
-# Ignore Conda environment directory (update to your actual env folder name if different)
-financial_modeling/
+# Ignore data files
+/data/raw/
+/data/processed/
+/data/archive/
 
-# Ignore VS Code settings
-.vscode/
-*.code-workspace
-
-# Ignore cache and compiled Python files
+# Ignore Python compiled files
+*.pyc
 __pycache__/
-*.py[cod]
+
+# Ignore virtual environment
+/venv/
 
 # Ignore Jupyter Notebook checkpoints
 .ipynb_checkpoints/
 
-# Ignore other local config/environment files
-*.env
-*.DS_Store
-
-# Ignore data directories that shouldn't be tracked
-data/raw/

@@ -1,82 +1,86 @@
-import yfinance as yf  # type: ignore
+import yfinance as yf
 import pandas as pd
 import os
 from typing import Dict
+from scripts.utilities.data_transformation_utils import get_data_paths, configure_logging
 
-# Function to retrieve financial data from Yahoo Finance
+logger = configure_logging()
+
 def get_financial_data_yfinance(ticker_symbol: str) -> Dict[str, pd.DataFrame]:
+    """
+    Fetches financial statements for the given ticker symbol using yfinance.
+
+    Args:
+        ticker_symbol (str): The ticker symbol of the company (e.g., "GM").
+
+    Returns:
+        Dict[str, pd.DataFrame]: A dictionary containing financial statements
+        as DataFrames for income statement, balance sheet, and cash flow.
+    """
     try:
-        # Create the ticker object
+        logger.info(f"Fetching financial data for ticker: {ticker_symbol}")
         ticker = yf.Ticker(ticker_symbol)
 
-        # Fetch financial statements for the past 4 years (most recent)
-        income_statement = ticker.financials.T.head(4)  # Transposed to get years as rows
-        balance_sheet = ticker.balance_sheet.T.head(4)
-        cash_flow = ticker.cashflow.T.head(4)
+        # Fetch financial statements
+        income_statement = ticker.financials
+        balance_sheet = ticker.balance_sheet
+        cash_flow = ticker.cashflow
 
-        # Return the financial data as a dictionary of DataFrames
+        if income_statement.empty or balance_sheet.empty or cash_flow.empty:
+            logger.warning(f"No financial data found for ticker: {ticker_symbol}")
+            return {}
+
+        logger.info(f"Successfully fetched financial data for {ticker_symbol}")
         return {
             'income_statement': income_statement,
             'balance_sheet': balance_sheet,
             'cash_flow': cash_flow
         }
     except Exception as e:
-        print(f"An error occurred while fetching data for {ticker_symbol} from Yahoo Finance: {e}")
-        return None
+        logger.error(f"An error occurred while fetching financial data for {ticker_symbol}: {e}")
+        return {}
 
-# Placeholder function for another data provider (e.g., Alpha Vantage)
-def get_financial_data_other(ticker_symbol: str) -> Dict[str, pd.DataFrame]:
-    print(f"Fetching data for {ticker_symbol} from another provider...")
-    # Implement the other API logic here
-    return None
-
-# Function to save the financial data to an Excel file
-def save_financial_data_to_excel(financial_data: Dict[str, pd.DataFrame], output_path='./data/financial_statements.xlsx'):
+def save_financial_data_to_csv(financial_data: Dict[str, pd.DataFrame]):
     """
-    Saves the financial data to separate sheets in an Excel file.
+    Saves the financial data to separate CSV files in the 'raw' subfolder.
 
-    Parameters:
-    - financial_data (dict): A dictionary containing DataFrames (income_statement, balance_sheet, cash_flow).
-    - output_path (str): The path to save the Excel file.
+    Args:
+        financial_data (Dict[str, pd.DataFrame]): Dictionary of DataFrames to save.
     """
-    if financial_data is None:
-        print("No financial data available to save.")
+    if not financial_data:
+        logger.error("No financial data available to save.")
         return
 
     try:
-        # Save each DataFrame to a separate sheet in an Excel file
-        with pd.ExcelWriter(output_path) as writer:
-            for key, df in financial_data.items():
-                df.to_excel(writer, sheet_name=key.replace('_', ' ').title(), index=True)
-        
-        print(f"Financial data saved successfully to {output_path}.")
-    except Exception as e:
-        print(f"An error occurred while saving financial data: {e}")
+        raw_data_dir, _ = get_data_paths()
+        os.makedirs(raw_data_dir, exist_ok=True)
+        logger.info(f"Saving financial data to directory: {raw_data_dir}")
 
-# Main block for testing
+        for statement_type, df in financial_data.items():
+            if df.empty:
+                logger.warning(f"{statement_type} DataFrame is empty. Skipping save.")
+                continue
+
+            csv_path = os.path.join(raw_data_dir, f"{statement_type}.csv")
+            df.to_csv(csv_path, index=True)
+            logger.info(f"Saved {statement_type} data to {csv_path}")
+
+        logger.info("Financial data saved successfully.")
+    except Exception as e:
+        logger.error(f"An error occurred while saving financial data: {e}")
+
 def main():
-    # Define the ticker symbol
-    ticker_symbol = input("Enter the ticker symbol (e.g., GM): ")
-    
-    # Ask user to select the data provider
-    provider = input("Select data provider (yfinance/other): ").strip().lower()
-    
-    # Retrieve financial data based on selected provider
-    if provider == 'yfinance':
-        financial_data = get_financial_data_yfinance(ticker_symbol)
-    elif provider == 'other':
-        financial_data = get_financial_data_other(ticker_symbol)
-    else:
-        print("Invalid provider. Currently, only yfinance or other is supported.")
+    """
+    Main function to retrieve and save financial data for a given ticker symbol.
+    """
+    ticker_symbol = input("Enter the ticker symbol (e.g., GM): ").strip().upper()
+    if not ticker_symbol:
+        logger.error("No ticker symbol provided. Exiting.")
         return
 
-    # Print the retrieved data (optional)
+    financial_data = get_financial_data_yfinance(ticker_symbol)
     if financial_data:
-        for key, df in financial_data.items():
-            print(f"{key}:\n{df}\n")
-
-    # Save the data to an Excel file with separate sheets
-    save_financial_data_to_excel(financial_data)
+        save_financial_data_to_csv(financial_data)
 
 if __name__ == "__main__":
     main()

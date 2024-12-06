@@ -4,3 +4,5 @@ yfinance
 numpy
 matplotlib
 xlwings
+fuzzywuzzy
+python-Levenshtein
