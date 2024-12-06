@@ -120,3 +120,35 @@ def tag_line_item_indices(dataframe: pd.DataFrame, dictionary: dict) -> pd.DataF
 
     dataframe["Category"] = dataframe["Category"].apply(map_item)
     return dataframe
+
+# Archiving files
+def archive_files(source_dir, archive_dir):
+    """
+    Archives files in a source directory.
+    """
+    try:
+        os.makedirs(archive_dir, exist_ok=True)
+        for file in os.listdir(source_dir):
+            file_path = os.path.join(source_dir, file)
+            if os.path.isfile(file_path):
+                timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                archived_file = f"{os.path.splitext(file)[0]}_{timestamp}.csv"
+                os.rename(file_path, os.path.join(archive_dir, archived_file))
+                logger.info(f"Archived: {file}")
+    except Exception as e:
+        logger.error(f"Error archiving files: {e}")
+
+# Pruning old archives
+def prune_archives(archive_dir, retention_days=30):
+    """
+    Deletes files older than `retention_days` in the archive directory.
+    """
+    try:
+        cutoff_time = datetime.now() - timedelta(days=retention_days)
+        for file in os.listdir(archive_dir):
+            file_path = os.path.join(archive_dir, file)
+            if os.path.isfile(file_path) and datetime.fromtimestamp(os.path.getmtime(file_path)) < cutoff_time:
+                os.remove(file_path)
+                logger.info(f"Pruned archive file: {file}")
+    except Exception as e:
+        logger.error(f"Error pruning archives: {e}")
