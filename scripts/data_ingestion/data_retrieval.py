@@ -2,9 +2,7 @@ import yfinance as yf
 import pandas as pd
 import os
 from typing import Dict
-from scripts.utilities.data_transformation_utils import get_data_paths, configure_logging
-
-logger = configure_logging()
+from scripts.utilities.data_transformation_utils import get_data_paths, logger
 
 def get_financial_data_yfinance(ticker_symbol: str) -> Dict[str, pd.DataFrame]:
     """
@@ -53,6 +51,7 @@ def save_financial_data_to_csv(financial_data: Dict[str, pd.DataFrame]):
 
     try:
         raw_data_dir, _ = get_data_paths()
+        raw_data_dir = os.path.abspath(raw_data_dir)
         os.makedirs(raw_data_dir, exist_ok=True)
         logger.info(f"Saving financial data to directory: {raw_data_dir}")
 
@@ -69,11 +68,15 @@ def save_financial_data_to_csv(financial_data: Dict[str, pd.DataFrame]):
     except Exception as e:
         logger.error(f"An error occurred while saving financial data: {e}")
 
-def main():
+def main(ticker_symbol=None):
     """
     Main function to retrieve and save financial data for a given ticker symbol.
     """
-    ticker_symbol = input("Enter the ticker symbol (e.g., GM): ").strip().upper()
+    if ticker_symbol is None:
+        ticker_symbol = input("Enter the ticker symbol (e.g., GM): ").strip().upper()
+    else:
+        ticker_symbol = ticker_symbol.strip().upper()
+
     if not ticker_symbol:
         logger.error("No ticker symbol provided. Exiting.")
         return

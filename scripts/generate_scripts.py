@@ -3,13 +3,11 @@
 import os
 import pandas as pd
 from scripts.utilities.data_transformation_utils import (
-    configure_logging,
     get_data_paths,
     archive_files,
     prune_archives,
+    logger
 )
-
-logger = configure_logging()
 
 def load_historical_data():
     """Loads the transformed and tagged financial statements."""
@@ -140,11 +138,11 @@ def main():
         _, processed_data_dir = get_data_paths()
         archive_dir = os.path.join(processed_data_dir, 'archive')
 
-        # Archive old files before processing
-        archive_files(processed_data_dir, archive_dir)
-
-        # Load the transformed and tagged financial statements
+        # Load the transformed and tagged financial statements before archiving
         balance_sheet, income_statement, cash_flow = load_historical_data()
+
+        # Archive old files after loading
+        archive_files(processed_data_dir, archive_dir)
 
         # Combine the statements
         combined_df = combine_statements(balance_sheet, income_statement, cash_flow)

@@ -1,22 +1,19 @@
 import os
 import logging
-import pandas as pd
-from fuzzywuzzy import process
 from datetime import datetime, timedelta
 
-# Configure logging
-def configure_logging():
-    logger = logging.getLogger("FinancialModeling")
-    logger.setLevel(logging.INFO)
-    if not logger.handlers:
-        handler = logging.StreamHandler()
-        handler.setLevel(logging.INFO)
-        formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-        handler.setFormatter(formatter)
-        logger.addHandler(handler)
-    return logger
+import pandas as pd
+from fuzzywuzzy import process
 
-logger = configure_logging()
+# Configure logger at the module level
+logger = logging.getLogger("FinancialModeling")
+logger.setLevel(logging.INFO)
+if not logger.handlers:
+    handler = logging.StreamHandler()
+    handler.setLevel(logging.INFO)
+    formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
 
 # Get project paths
 def get_data_paths():
@@ -110,24 +107,35 @@ line_item_dict = {
     # Add more mappings as necessary
 }
 
-# Tagging function for line items using fuzzy matching
-def tag_line_item_indices(dataframe, dictionary):
+# Refactored tag_line_item_indices function
+def tag_line_item_indices(df, line_item_dict):
     """
-    Tags line items in a DataFrame based on fuzzy matching.
-    """
-    def map_item(item):
-        if not isinstance(item, str):
-            return item
-        # Match against dictionary keys
-        matches = [(key, process.extractOne(item, dictionary[key])) for key in dictionary]
-        best_match, (best_item, score) = max(matches, key=lambda x: x[1][1])
-        return best_match if score >= 80 else item
+    Tag line items in the DataFrame based on the line_item_dict.
 
-    if "Category" in dataframe.columns:
-        dataframe["Category"] = dataframe["Category"].apply(map_item)
-    else:
-        raise KeyError("Column 'Category' not found in the DataFrame.")
-    return dataframe
+    Args:
+        df (pd.DataFrame): DataFrame containing a 'Category' column.
+        line_item_dict (dict): Dictionary of standard line items and their aliases.
+
+    Returns:
+        pd.DataFrame: DataFrame with an additional 'Standardized Category' column.
+    """
+    if 'Category' not in df.columns:
+        logger.warning("Column 'Category' not found in DataFrame.")
+        return df
+
+    # Handle NaN values in 'Category' column
+    df['Category'] = df['Category'].fillna('Unknown')
+
+    def match_line_item(item):
+        if item == 'Unknown':
+            return item
+        match, score = process.extractOne(item, [key for key in line_item_dict.keys()])
+        if score >= 80:
+            return match
+        return item
+
+    df['Standardized Category'] = df['Category'].apply(match_line_item)
+    return df
 
 # Archiving files
 def archive_files(source_dir, archive_dir):
@@ -145,13 +153,17 @@ def archive_files(source_dir, archive_dir):
                 logger.info(f"Archived: {file}")
     except Exception as e:
         logger.error(f"Error archiving files: {e}")
-
+        
 # Pruning old archives
 def prune_archives(archive_dir, retention_days=30):
     """
     Deletes files older than `retention_days` in the archive directory.
     """
     try:
+        if not os.path.exists(archive_dir):
+            logger.warning(f"Archive directory does not exist: {archive_dir}")
+            return
+
         cutoff_time = datetime.now() - timedelta(days=retention_days)
         for file in os.listdir(archive_dir):
             file_path = os.path.join(archive_dir, file)
@@ -160,3 +172,5 @@ def prune_archives(archive_dir, retention_days=30):
                 logger.info(f"Pruned archive file: {file}")
     except Exception as e:
         logger.error(f"Error pruning archives: {e}")
+
+

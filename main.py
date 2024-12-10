@@ -1,20 +1,22 @@
 import os
 import sys
-import logging
+
+# Add the project root to the system path
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "."))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
 from scripts.data_ingestion.data_retrieval import main as data_retrieval_main
 from scripts.data_preprocessing.balance_sheet_transformation import BalanceSheetTransformer
 from scripts.data_preprocessing.income_statement_transformation import IncomeStatementTransformer
 from scripts.data_preprocessing.cash_flow_transformation import CashFlowTransformer
 from scripts.generate_scripts import main as generate_scripts_main
 from scripts.utilities.data_transformation_utils import (
-    configure_logging,
     get_data_paths,
     archive_files,
     prune_archives,
+    logger
 )
-
-# Configure logging
-logger = configure_logging()
 
 def validate_and_archive_folders():
     """Validates the folder structure and archives existing files."""
@@ -29,36 +31,32 @@ def validate_and_archive_folders():
         os.makedirs(directory, exist_ok=True)
         logger.info(f"Validated or created directory: {directory}")
 
-    # Archive old files
-    archive_files(raw_data_dir, raw_archive_dir)
-    archive_files(processed_data_dir, processed_archive_dir)
-
-    # Prune old files
-    prune_archives(raw_archive_dir)
-    prune_archives(processed_archive_dir)
-
 def run_data_ingestion():
-    """Run the data ingestion process."""
-    logger.info("Starting data ingestion...")
-    data_retrieval_main()
-    logger.info("Data ingestion completed.")
+    """Runs the data ingestion process."""
+    ticker_symbol = 'GM'  # Replace with desired default ticker symbol
+    data_retrieval_main(ticker_symbol)
 
 def run_data_preprocessing():
-    """Run the data preprocessing for each financial statement."""
-    logger.info("Starting data preprocessing...")
-    BalanceSheetTransformer().transform()
-    IncomeStatementTransformer().transform()
-    CashFlowTransformer().transform()
-    logger.info("Data preprocessing completed.")
+    """Runs the data preprocessing steps."""
+
+    # Process balance sheet data
+    balance_sheet_transformer = BalanceSheetTransformer()
+    balance_sheet_transformer.transform()
+
+    # Process income statement data
+    income_statement_transformer = IncomeStatementTransformer()
+    income_statement_transformer.transform()
+
+    # Process cash flow data
+    cash_flow_transformer = CashFlowTransformer()
+    cash_flow_transformer.transform()
 
     # Generate baseline values
     generate_scripts_main()
-    logger.info("Baseline values calculated and saved.")
 
 def main():
-    """Main execution workflow."""
+    """Main function to run the data processing pipeline."""
     try:
-        # Validate folder structure and archive old data
         validate_and_archive_folders()
 
         # Run processes

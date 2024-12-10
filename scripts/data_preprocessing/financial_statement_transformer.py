@@ -1,13 +1,11 @@
 import os
 import pandas as pd
 from scripts.utilities.data_transformation_utils import (
-    configure_logging,
     get_data_paths,
     tag_line_item_indices,
     line_item_dict,
+    logger
 )
-
-logger = configure_logging()
 
 class FinancialStatementTransformer:
     """Base class for transforming financial statements with validation and testing entry points."""
@@ -54,38 +52,53 @@ class FinancialStatementTransformer:
 
     def transform_data(self):
         """Applies necessary transformations to the financial statement."""
-        self.validate_data()  # Perform data validation before transformations
+        try:
+            self.validate_data()
 
-        # Step 1: Identify and use the first column as the index
-        first_column_name = self.df.columns[0]
+            # Step 1: Reset index if any
+            if self.df.index.name:
+                self.df.reset_index(inplace=True)
 
-        # Step 2: Sort data by the first column (ascending order)
-        self.df = self.df.sort_values(by=first_column_name, ascending=True).reset_index(drop=True)
+            # Step 2: Set the first column as 'Category' if it's unnamed
+            if 'Unnamed: 0' in self.df.columns:
+                self.df.rename(columns={'Unnamed: 0': 'Category'}, inplace=True)
+            elif self.df.columns[0] != 'Category':
+                self.df.rename(columns={self.df.columns[0]: 'Category'}, inplace=True)
 
-        # Step 3: Transpose the DataFrame
-        df_transposed = self.df.set_index(first_column_name).T
+            # Step 3: Sort columns (dates) in chronological order
+            date_columns = [col for col in self.df.columns if col != 'Category']
+            date_columns = sorted(date_columns, reverse=True)  # Sort dates in descending order
+            column_order = ['Category'] + date_columns
+            self.df = self.df[column_order]
 
-        # Step 4: Add a helper column for sorting
-        df_transposed['Sort'] = range(len(df_transposed), 0, -1)
+            # Step 4: Remove any rows where Category is NaN or empty
+            self.df = self.df[self.df['Category'].notna()]
+            self.df = self.df[self.df['Category'] != '']
 
-        # Step 5: Validation checkpoint and diagnostic logging
-        logger.info(f"Step 5 - Transposed data with 'Sort' column:\n{df_transposed.head()}")
-        # Allow manual inspection here if testing interactively
+            # Step 5: Apply statement-specific transformations
+            if self.statement_type == 'income_statement':
+                # For income statement, keep natural order (Revenue at top, Net Income at bottom)
+                self.df = self.df.iloc[::-1]
+            elif self.statement_type == 'cash_flow':
+                # For cash flow, maintain operating/investing/financing sections
+                self.df = self.df.iloc[::-1]
+            elif self.statement_type == 'balance_sheet':
+                # For balance sheet, maintain Assets -> Liabilities -> Equity order
+                self.df = self.df.iloc[::-1]  # Reverse to get Assets at top
 
-        # Step 6: Sort by the helper column and drop it
-        df_sorted = df_transposed.sort_values(by='Sort', ascending=True).drop(columns=['Sort'])
+            # Step 6: Replace any NaN values with empty string
+            self.df = self.df.fillna('')
 
-        # Step 7: Reset index and set new index as 'Category'
-        df_sorted.index.name = 'Category'
+            logger.info(f"Transformed {self.statement_type} data:\n{self.df.head()}")
 
-        # Update the instance DataFrame
-        self.df = df_sorted.reset_index()
-        logger.info(f"Transformed {self.statement_type} data:\n{self.df.head()}")
+        except Exception as e:
+            logger.error(f"Error during transformation of {self.statement_type}: {e}")
+            raise
 
     def tag_data(self):
         """Tags line items using the predefined dictionary."""
-        if 'Category' not in self.df.columns:
-            logger.warning(f"Column 'Category' not found in {self.statement_type} data.")
+        if 'LineItem' not in self.df.columns:
+            logger.warning(f"Column 'LineItem' not found in {self.statement_type} data.")
             return
         self.df = tag_line_item_indices(self.df, line_item_dict)
         logger.info(f"Tagged {self.statement_type} data:\n{self.df.head()}")
